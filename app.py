@@ -10,25 +10,66 @@ st.set_page_config(page_title="バス混雑度フィードバック", page_icon=
 
 DATA_FILE = "user_feedback.csv"
 
+# 🌟【決定版】裏技不要！CSSだけで標準ボタンを巨大な3色の正方形カードに変身させる
+st.markdown("""
+<style>
+/* 3つのボタン共通の巨大化・カード化設定 */
+div[data-testid="stHorizontalBlock"] button {
+    height: 220px !important;    /* 巨大な正方形にする高さ */
+    width: 100% !important;
+    white-space: pre-wrap !important; /* ボタン内での改行を絶対に許可する */
+    font-size: 16px !important;
+    font-weight: bold !important;
+    border-radius: 20px !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+    transition: all 0.3s ease !important;
+}
+/* ボタンに触れたときに少し浮かすアニメーション（直感UI） */
+div[data-testid="stHorizontalBlock"] button:hover {
+    transform: translateY(-5px) !important;
+    box-shadow: 0 8px 15px rgba(0,0,0,0.2) !important;
+}
+
+/* 1番目のカラムのボタン（ガラガラ：緑枠線＋薄緑背景） */
+div[data-testid="stHorizontalBlock"] > div:nth-child(1) button {
+    border: 3px solid #00c853 !important;
+    background-color: #f1fbf5 !important;
+    color: #333 !important;
+}
+/* 2番目のカラムのボタン（少し混雑：黄枠線＋薄黄背景） */
+div[data-testid="stHorizontalBlock"] > div:nth-child(2) button {
+    border: 3px solid #ffd600 !important;
+    background-color: #fffdef !important;
+    color: #333 !important;
+}
+/* 3番目のカラムのボタン（大混雑：赤枠線＋薄赤背景） */
+div[data-testid="stHorizontalBlock"] > div:nth-child(3) button {
+    border: 3px solid #d50000 !important;
+    background-color: #fff1f1 !important;
+    color: #333 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ==========================================
-# 2. 多言語対応辞書（視覚表現を強化）
+# 2. 多言語対応辞書（ボタンの中に直接ピクトグラムを大量配置）
 # ==========================================
 LANG_DICT = {
     "JA": {
         "title": "🚌 混雑度アンケート",
         "subtitle": "今の車内の様子をタップして教えてください！",
-        "class1_name": "ガラガラ",
-        "class2_name": "少し混雑",
-        "class3_name": "大混雑",
+        "btn1_text": "ガラガラ\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
+        "btn2_text": "少し混雑\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
+        "btn3_text": "大混雑\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
         "success_msg": "ご協力ありがとうございました！🙌",
         "error_msg": "エラーが発生しました。"
     },
     "EN": {
         "title": "🚌 Congestion Survey",
         "subtitle": "Tap the card that matches the current bus!",
-        "class1_name": "Empty",
-        "class2_name": "Standing",
-        "class3_name": "Crowded",
+        "btn1_text": "Empty\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
+        "btn2_text": "Standing\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
+        "btn3_text": "Crowded\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
         "success_msg": "Thank you for your cooperation! 🙌",
         "error_msg": "An error occurred."
     }
@@ -37,8 +78,6 @@ LANG_DICT = {
 # ==========================================
 # 3. 画面レイアウト構築
 # ==========================================
-
-# 言語切り替え
 selected_lang = st.selectbox("Language / 言語", ["日本語", "English"], label_visibility="collapsed")
 lang = "JA" if selected_lang == "日本語" else "EN"
 
@@ -52,81 +91,20 @@ st.info(f"📍 Route ID: {route_id} / Busstop ID: {busstop_id}")
 
 st.markdown("---")
 
-# 🌟【ここが肝】巨大な正方形カード型ボタンを実現するHTML/CSS
-# 各クラスに合わせて人の絵文字の数を調整
-icon_class1 = "🟢<br><span style='font-size:35px;'>💺💺💺<br>💺💺🧍</span>" # 空席多数、人1人
-icon_class2 = "🟡<br><span style='font-size:35px;'>🧍🧍🧍<br>💺💺🧍</span>" # 立ち数人、空席減る
-icon_class3 = "🔴<br><span style='font-size:35px;'>🧍🧍🧍🧍<br>🧍🧍🧍🧍<br>🧍🧍🧍🧍</span>" # ギッシリ
-
-html_card_template = """
-<style>
-/* カード（ボタン）の全体デザイン */
-.congest-card {{
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    height: 180px;              /* 巨大な正方形の高さ */
-    border: 3px solid #ddd;     /* 太めの枠線 */
-    border-radius: 20px;        /* 角丸 */
-    padding: 15px;
-    margin: 5px;
-    text-align: center;
-    cursor: pointer;            /* カーソルを指マークに */
-    transition: all 0.3s ease;  /* アニメーション */
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1); /* 影 */
-    background-color: white;
-}}
-/* タップ・ホップ時の視覚効果 */
-.congest-card:hover {{
-    transform: translateY(-5px); /* 少し浮く */
-    box-shadow: 0 8px 15px rgba(0,0,0,0.2);
-}}
-/* クラスご用の枠線色 */
-.card-1 {{ border-color: #00c853; background-color: #f1fbf5; }} /* 緑 */
-.card-2 {{ border-color: #ffd600; background-color: #fffdef; }} /* 黄 */
-.card-3 {{ border-color: #d50000; background-color: #fff1f1; }} /* 赤 */
-
-.card-title {{ font-size: 18px; font-weight: bold; color: #333; margin-top: 5px; }}
-.card-icons {{ font-size: 20px; line-height: 1.2; flex-grow: 1; display: flex; align-items: center; justify-content: center; }}
-.card-bus {{ font-size: 24px; margin-bottom: 5px; }}
-</style>
-
-<div style="display: flex; justify-content: space-between;">
-    <div class="congest-card card-1" onclick="document.getElementById('hidden_btn_1').click();">
-        <div class="card-title">{title1}</div>
-        <div class="card-icons">{icons1}</div>
-        <div class="card-bus">🚌</div>
-    </div>
-    <div class="congest-card card-2" onclick="document.getElementById('hidden_btn_2').click();">
-        <div class="card-title">{title2}</div>
-        <div class="card-icons">{icons2}</div>
-        <div class="card-bus">🚌</div>
-    </div>
-    <div class="congest-card card-3" onclick="document.getElementById('hidden_btn_3').click();">
-        <div class="card-title">{title3}</div>
-        <div class="card-icons">{icons3}</div>
-        <div class="card-bus">🚌</div>
-    </div>
-</div>
-"""
-
-# HTMLを描画
-st.markdown(html_card_template.format(
-    title1=LANG_DICT[lang]["class1_name"], icons1=icon_class1,
-    title2=LANG_DICT[lang]["class2_name"], icons2=icon_class2,
-    title3=LANG_DICT[lang]["class3_name"], icons3=icon_class3
-), unsafe_allow_html=True)
-
-# 🌟【裏技】HTMLカードのクリックをStreamlitに伝えるための「隠しボタン」
-# CSSで画面外に吹き飛ばして見えなくしている
-st.markdown("""<style>div[data-testid="stHidden"] { display: none; }</style>""", unsafe_allow_html=True)
+# 3つのカラム（列）を横並びに作成
+col1, col2, col3 = st.columns(3)
 user_class = None
-with st.container(data_testid="stHidden"):
-    if st.button("hidden1", key="hidden_btn_1"): user_class = 1
-    if st.button("hidden2", key="hidden_btn_2"): user_class = 2
-    if st.button("hidden3", key="hidden_btn_3"): user_class = 3
 
+# Streamlit公式のボタン。上記のCSSの力で、巨大な3色のイラストカードに変貌します。
+with col1:
+    if st.button(LANG_DICT[lang]["btn1_text"], key="btn_class_1", use_container_width=True):
+        user_class = 1
+with col2:
+    if st.button(LANG_DICT[lang]["btn2_text"], key="btn_class_2", use_container_width=True):
+        user_class = 2
+with col3:
+    if st.button(LANG_DICT[lang]["btn3_text"], key="btn_class_3", use_container_width=True):
+        user_class = 3
 
 # ==========================================
 # 4. 保存処理（変更なし）
