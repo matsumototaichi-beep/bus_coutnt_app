@@ -17,9 +17,15 @@ if "selected_choice" not in st.session_state:
     st.session_state.selected_choice = None
 if "approx_val" not in st.session_state:
     st.session_state.approx_val = None
+if "trigger_balloons" not in st.session_state:
+    st.session_state.trigger_balloons = False
+if "birth_year" not in st.session_state:
+    st.session_state.birth_year = None
+if "birth_month" not in st.session_state:
+    st.session_state.birth_month = None
 
 # ==========================================
-# 2. 多言語対応辞書（主観補正の人数帯をカード内に内包）
+# 2. 多言語対応辞書（主観補正の人数帯をボタン文字に内包）
 # ==========================================
 LANG_DICT = {
     "JA": {
@@ -28,10 +34,9 @@ LANG_DICT = {
         "birth_year_label": "誕生年 (Birth Year)",
         "birth_month_label": "誕生月 (Birth Month)",
         "next_btn": "アンケート画面へ進む ➡️",
-        # 🌟 主観を補正するための「想定人数帯」をデザインの一部としてタイトルに埋め込み
-        "class1_name": "ガラガラ<br><span style='font-size:11px; font-weight:normal; color:#666;'>[ 0〜3人 ]</span>",
-        "class2_name": "少し混雑<br><span style='font-size:11px; font-weight:normal; color:#666;'>[ 4〜9人 ]</span>",
-        "class3_name": "大混雑<br><span style='font-size:11px; font-weight:normal; color:#666;'>[ 10人以上 ]</span>",
+        "btn1_text": "ガラガラ\n[ 0〜3人 ]\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
+        "btn2_text": "少し混雑\n[ 4〜9人 ]\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
+        "btn3_text": "大混雑\n[ 10人以上 ]\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
         "optional_section": "📊 【任意協力】もう少し詳しく教えてください",
         "approx_label": "車内の「だいたいの合計人数」は？",
         "approx_default": "選択しない（スキップ）",
@@ -44,9 +49,9 @@ LANG_DICT = {
         "birth_year_label": "Birth Year",
         "birth_month_label": "Birth Month",
         "next_btn": "Go to Survey ➡️",
-        "class1_name": "Empty<br><span style='font-size:11px; font-weight:normal; color:#666;'>[ 0 - 3 ppl ]</span>",
-        "class2_name": "Standing<br><span style='font-size:11px; font-weight:normal; color:#666;'>[ 4 - 9 ppl ]</span>",
-        "class3_name": "Crowded<br><span style='font-size:11px; font-weight:normal; color:#666;'>[ 10+ ppl ]</span>",
+        "btn1_text": "Empty\n[ 0 - 3 ppl ]\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
+        "btn2_text": "Standing\n[ 4 - 9 ppl ]\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
+        "btn3_text": "Crowded\n[ 10+ ppl ]\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
         "optional_section": "📊 [Optional] Tell us more details",
         "approx_label": "About how many passengers in total?",
         "approx_default": "Select here (Skip)",
@@ -113,102 +118,73 @@ if st.session_state.step == 1:
 # 4. 【画面遷移】ステップ2：アンケート本体画面（スクロールゼロ）
 # ==========================================
 elif st.session_state.step == 2:
-    # アイコンの定義
-    icon_class1 = "🟢<br><span style='font-size:30px;'>💺💺💺<br>💺💺🧍</span>"
-    icon_class2 = "🟡<br><span style='font-size:30px;'>🧍🧍🧍<br>💺💺🧍</span>"
-    icon_class3 = "🔴<br><span style='font-size:30px;'>🧍🧍🧍🧍<br>🧍🧍🧍🧍<br>🧍🧍🧍🧍</span>"
-
-    # 選択状態（ハイライト）のCSSクラス動的判定
+    
+    # 🌟 動的CSSの構築：選択されたボタンだけハイライト（枠線が太くなり、少し浮き出る）する
     sel = st.session_state.selected_choice
-    h_class1 = " selected-card" if sel == 1 else ""
-    h_class2 = " selected-card" if sel == 2 else ""
-    h_class3 = " selected-card" if sel == 3 else ""
+    highlight_css = ""
+    if sel == 1:
+        highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(1) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
+    elif sel == 2:
+        highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(2) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
+    elif sel == 3:
+        highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(3) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
 
-    html_card_template = f"""
+    # Streamlit標準ボタンを巨大カード化するCSS + 動的ハイライト
+    st.markdown(f"""
     <style>
-    /* カード（ボタン）の全体デザイン */
-    .congest-card {{
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: space-between;
-        height: 190px;
-        width: 31%;                 /* スマホで3列綺麗に並べるための幅固定 */
-        border: 3px solid #ddd;
-        border-radius: 20px;
-        padding: 10px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        background-color: white;
+    /* 3つのボタン共通の巨大化・カード化設定 */
+    div[data-testid="stHorizontalBlock"] button {{
+        height: 230px !important;    
+        width: 100% !important;
+        white-space: pre-wrap !important; 
+        font-size: 15px !important;
+        font-weight: bold !important;
+        border-radius: 20px !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+        transition: all 0.2s ease !important;
     }}
-    /* タップ時の凹むアニメーション（物理的な押し心地） */
-    .congest-card:active {{
-        transform: scale(0.93) !important;
+    /* スマホでタップした瞬間にボタンがグッと沈み込む効果（物理的な押し心地） */
+    div[data-testid="stHorizontalBlock"] button:active {{
+        transform: scale(0.92) !important;   
         box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
     }}
-    .card-1 {{ border-color: #00c853; background-color: #f1fbf5; }}
-    .card-2 {{ border-color: #ffd600; background-color: #fffdef; }}
-    .card-3 {{ border-color: #d50000; background-color: #fff1f1; }}
-
-    /* 🔥【新機能】文字を一切使わない、デザイン（太枠・拡大・強シャドウ）だけのハイライト効果 */
-    .selected-card {{
-        border-width: 6px !important;
-        box-shadow: 0 0 15px rgba(0,0,0,0.4) !important;
-        transform: scale(1.04);
+    /* 通常時のボタン色（緑、黄、赤） */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1) button {{
+        border: 3px solid #00c853 !important; background-color: #f1fbf5 !important; color: #333 !important;
     }}
-
-    .card-title {{ font-size: 14px; font-weight: bold; color: #333; margin-top: 5px; line-height: 1.3; }}
-    .card-icons {{ font-size: 18px; line-height: 1.2; flex-grow: 1; display: flex; align-items: center; justify-content: center; }}
-    .card-bus {{ font-size: 20px; margin-bottom: 5px; }}
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) button {{
+        border: 3px solid #ffd600 !important; background-color: #fffdef !important; color: #333 !important;
+    }}
+    div[data-testid="stHorizontalBlock"] > div:nth-child(3) button {{
+        border: 3px solid #d50000 !important; background-color: #fff1f1 !important; color: #333 !important;
+    }}
+    
+    /* 選択状態のハイライト適用 */
+    {highlight_css}
     </style>
+    """, unsafe_allow_html=True)
 
-    <div style="display: flex; justify-content: space-between; width: 100%;">
-        <div class="congest-card card-1{h_class1}" onclick="document.getElementById('hidden_btn_1').click();">
-            <div class="card-title">{{title1}}</div>
-            <div class="card-icons">{{icons1}}</div>
-            <div class="card-bus">🚌</div>
-        </div>
-        <div class="congest-card card-2{h_class2}" onclick="document.getElementById('hidden_btn_2').click();">
-            <div class="card-title">{{title2}}</div>
-            <div class="card-icons">{{icons2}}</div>
-            <div class="card-bus">🚌</div>
-        </div>
-        <div class="congest-card card-3{h_class3}" onclick="document.getElementById('hidden_btn_3').click();">
-            <div class="card-title">{{title3}}</div>
-            <div class="card-icons">{{icons3}}</div>
-            <div class="card-bus">🚌</div>
-        </div>
-    </div>
-    """
+    col1, col2, col3 = st.columns(3)
+    pressed_choice = None
 
-    # HTMLを描画
-    st.markdown(html_card_template.format(
-        title1=LANG_DICT[lang]["class1_name"], icons1=icon_class1,
-        title2=LANG_DICT[lang]["class2_name"], icons2=icon_class2,
-        title3=LANG_DICT[lang]["class3_name"], icons3=icon_class3
-    ), unsafe_allow_html=True)
-
-    # 隠しボタンの配置
-    st.markdown("""<style>div[data-testid="stHidden"] { display: none; }</style>""", unsafe_allow_html=True)
-    user_class = None
-    with st.container(data_testid="stHidden"):
-        if st.button("hidden1", key="hidden_btn_1"): user_class = 1
-        if st.button("hidden2", key="hidden_btn_2"): user_class = 2
-        if st.button("hidden3", key="hidden_btn_3"): user_class = 3
+    with col1:
+        if st.button(LANG_DICT[lang]["btn1_text"], key="b1", use_container_width=True): pressed_choice = 1
+    with col2:
+        if st.button(LANG_DICT[lang]["btn2_text"], key="b2", use_container_width=True): pressed_choice = 2
+    with col3:
+        if st.button(LANG_DICT[lang]["btn3_text"], key="b3", use_container_width=True): pressed_choice = 3
 
     # 巨大ボタンが押された時の処理（押し直し・修正時もここを通る）
-    if user_class is not None:
-        st.session_state.selected_choice = user_class
+    if pressed_choice is not None:
+        st.session_state.selected_choice = pressed_choice
         # すでに選ばれている任意の値があればそれを引き継ぎ、無ければデフォルトで即CSV保存
-        current_approx = st.session_state.get("approx_val", LANG_DICT[lang]["approx_default"])
-        save_feedback(user_class, current_approx)
+        current_approx = st.session_state.approx_val if st.session_state.approx_val else LANG_DICT[lang]["approx_default"]
+        save_feedback(pressed_choice, current_approx)
         st.session_state.trigger_balloons = True # 風船フラグをセット
         st.rerun()
 
     # 風船と成功メッセージの動的描画（ハイライトが適用された後に飛ぶように制御）
-    if st.session_state.get("trigger_balloons", False):
+    if st.session_state.trigger_balloons:
         st.balloons()
         st.success(LANG_DICT[lang]["success_msg"])
         st.session_state.trigger_balloons = False
