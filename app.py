@@ -2,30 +2,42 @@ import streamlit as st
 from datetime import datetime
 import os
 import csv
-import time
-import uuid
 
 # ==========================================
-# 1. 画面の設定とセッション状態の初期化
+# 1. 画面の設定（スマホ最適化）
 # ==========================================
 st.set_page_config(page_title="バス混雑度フィードバック", page_icon="🚌", layout="centered")
 
 DATA_FILE = "user_feedback.csv"
 
-# デバイス（ブラウザセッション）を一意に識別するIDを発行
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())[:8] # 短い一意のID
+# ==========================================
+# 2. 【神業】LocalStorageを使った永続デバイスIDの自動付与（リログ・QR再読込対策）
+# ==========================================
+device_id = st.query_params.get("device_id")
 
-# 選択状態やタイマーの状態を管理
-if "selected_class" not in st.session_state:
-    st.session_state.selected_class = None
-if "last_submit_time" not in st.session_state:
-    st.session_state.last_submit_time = 0.0
-if "cooldown_active" not in st.session_state:
-    st.session_state.cooldown_active = False
+if not device_id:
+    # URLにdevice_idがない場合、ブラウザのストレージからIDを読み込む（無ければ新規発行）
+    # Cross-Originを回避して画面全体をリダイレクトさせるJavaScript
+    js_redirect = """
+    <script>
+    const topUrl = new URL(window.top.location.href);
+    if (!topUrl.searchParams.has('device_id')) {
+        let devId = localStorage.getItem('bus_device_id');
+        if (!devId) {
+            devId = 'dev_' + Math.random().toString(36).substring(2, 11);
+            localStorage.setItem('bus_device_id', devId);
+        }
+        topUrl.searchParams.set('device_id', devId);
+        window.top.location.href = topUrl.toString();
+    }
+    </script>
+    """
+    st.components.v1.html(js_redirect, height=0, width=0)
+    st.info("読み込み中... (Loading...)")
+    st.stop()
 
 # ==========================================
-# 2. 視覚的アニメーション＆スタイル（カスタムCSS）
+# 3. 視覚的アニメーション＆スタイル（カスタムCSS）
 # ==========================================
 st.markdown("""
 <style>
@@ -38,16 +50,16 @@ div[data-testid="stHorizontalBlock"] button {
     font-weight: bold !important;
     border-radius: 20px !important;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-    transition: all 0.2s ease !important; /* アニメーション速度 */
+    transition: all 0.2s ease !important;
 }
 
-/* 🔥【新機能】スマホでタップした瞬間にボタンがグッと沈み込む（縮小する）効果 */
+/* スマホでタップした瞬間にボタンがグッと沈み込む効果（連打しても楽しい押し心地） */
 div[data-testid="stHorizontalBlock"] button:active {
-    transform: scale(0.92) !important;   /* 8%縮む */
+    transform: scale(0.92) !important;   
     box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
 }
 
-/* 通常時のボタン色（緑、黄、赤） */
+/* 通常時のボタン色（緑、黄、赤）※連打できるように常に活性化 */
 div[data-testid="stHorizontalBlock"] > div:nth-child(1) button {
     border: 3px solid #00c853 !important; background-color: #f1fbf5 !important; color: #333 !important;
 }
@@ -61,7 +73,7 @@ div[data-testid="stHorizontalBlock"] > div:nth-child(3) button {
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. 多言語対応辞書
+# 4. 多言語対応辞書
 # ==========================================
 LANG_DICT = {
     "JA": {
@@ -70,13 +82,8 @@ LANG_DICT = {
         "btn1_text": "ガラガラ\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
         "btn2_text": "少し混雑\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
         "btn3_text": "大混雑\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
-        "status_title": "【現在選択中】",
-        "class1_name": "🟢 ガラガラ (Empty)",
-        "class2_name": "🟡 少し混雑 (Standing)",
-        "class3_name": "🔴 大混雑 (Crowded)",
-        "correction_btn": "↩️ 間違えたので回答を訂正する！",
-        "cooldown_msg": "⚠️ 連続送信はできません。30秒間ロックされます...",
-        "success_msg": "ご協力ありがとうございました！🙌"
+        "success_msg": "ご回答ありがとうございました！🙌",
+        "spam_msg": "すでに回答を受け付けています。"
     },
     "EN": {
         "title": "🚌 Congestion Survey",
@@ -84,13 +91,8 @@ LANG_DICT = {
         "btn1_text": "Empty\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
         "btn2_text": "Standing\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
         "btn3_text": "Crowded\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
-        "status_title": "[Current Selection]",
-        "class1_name": "🟢 Empty",
-        "class2_name": "🟡 Standing",
-        "class3_name": "🔴 Crowded",
-        "correction_btn": "↩️ Correct my answer!",
-        "cooldown_msg": "⚠️ Anti-spam lock active for 30 seconds...",
-        "success_msg": "Thank you for your cooperation! 🙌"
+        "success_msg": "Thank you for your cooperation! 🙌",
+        "spam_msg": "We have already received your answer."
     }
 }
 
@@ -101,17 +103,37 @@ lang = "JA" if selected_lang == "日本語" else "EN"
 st.title(LANG_DICT[lang]["title"])
 st.caption(LANG_DICT[lang]["subtitle"])
 
-# パラメータ取得
+# パラメータ取得（裏側で紐づいた永続デバイスIDを表示）
 route_id = st.query_params.get("route_id", "不明(Unknown)")
 busstop_id = st.query_params.get("busstop_id", "不明(Unknown)")
-st.info(f"📍 Route ID: {route_id} / Busstop ID: {busstop_id} / 📱 User: {st.session_state.session_id}")
+st.info(f"📍 Route: {route_id} / Busstop: {busstop_id} / 📱 Device: {device_id}")
 
 st.markdown("---")
 
 # ==========================================
-# 4. CSVデータ書き込み関数（セッションID付き）
+# 5. 裏側での30秒判定ロジック（CSVから最新時間をスキャン）
 # ==========================================
-def save_feedback(user_choice):
+def get_last_submit_time(dev_id):
+    if not os.path.isfile(DATA_FILE):
+        return 0
+    try:
+        with open(DATA_FILE, mode='r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            if not header or "device_id" not in header:
+                return 0
+            dev_idx = header.index("device_id")
+            ts_idx = header.index("timestamp")
+            
+            last_ts = 0
+            for row in reader:
+                if len(row) > max(dev_idx, ts_idx) and row[dev_idx] == dev_id:
+                    last_ts = max(last_ts, int(row[ts_idx]))
+            return last_ts
+    except:
+        return 0
+
+def save_feedback(user_choice, dev_id):
     now_ts = int(datetime.now().timestamp())
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     file_exists = os.path.isfile(DATA_FILE)
@@ -119,81 +141,52 @@ def save_feedback(user_choice):
         with open(DATA_FILE, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             if not file_exists:
-                # 🌟 末尾に session_id を追加
-                writer.writerow(["timestamp", "datetime", "route_id", "busstop_id", "user_class", "session_id"])
-            writer.writerow([now_ts, now_str, route_id, busstop_id, user_choice, st.session_state.session_id])
+                writer.writerow(["timestamp", "datetime", "route_id", "busstop_id", "user_class", "device_id"])
+            writer.writerow([now_ts, now_str, route_id, busstop_id, user_choice, dev_id])
     except Exception as e:
         st.error("Save Error")
 
 # ==========================================
-# 5. メインUI：巨大ボタンエリア
+# 6. メインUI：巨大ボタンエリア（連打可能）
 # ==========================================
 col1, col2, col3 = st.columns(3)
-
-# 30秒のクールダウン中、またはすでに選択済みの場合はボタンを無効化（disabled）する
-is_disabled = st.session_state.cooldown_active
+pressed_choice = None
 
 with col1:
-    if st.button(LANG_DICT[lang]["btn1_text"], key="b1", use_container_width=True, disabled=is_disabled):
-        st.session_state.selected_class = 1
-        st.session_state.last_submit_time = time.time()
-        st.session_state.cooldown_active = True
-        save_feedback(1)
-        st.rerun()
-
+    if st.button(LANG_DICT[lang]["btn1_text"], key="b1", use_container_width=True): pressed_choice = 1
 with col2:
-    if st.button(LANG_DICT[lang]["btn2_text"], key="b2", use_container_width=True, disabled=is_disabled):
-        st.session_state.selected_class = 2
-        st.session_state.last_submit_time = time.time()
-        st.session_state.cooldown_active = True
-        save_feedback(2)
-        st.rerun()
-
+    if st.button(LANG_DICT[lang]["btn2_text"], key="b2", use_container_width=True): pressed_choice = 2
 with col3:
-    if st.button(LANG_DICT[lang]["btn3_text"], key="b3", use_container_width=True, disabled=is_disabled):
-        st.session_state.selected_class = 3
-        st.session_state.last_submit_time = time.time()
-        st.session_state.cooldown_active = True
-        save_feedback(3)
-        st.rerun()
+    if st.button(LANG_DICT[lang]["btn3_text"], key="b3", use_container_width=True): pressed_choice = 3
 
 # ==========================================
-# 6. 【新機能】選択状態表示 ＆ 訂正・30秒制限ロジック
+# 7. ボタンが押されたときのアクション判定
 # ==========================================
-if st.session_state.selected_class is not None:
-    st.markdown("---")
+if pressed_choice is not None:
+    current_ts = int(datetime.now().timestamp())
+    last_ts = get_last_submit_time(device_id)
     
-    # 選択したクラスの名前に変換
-    c_name = ""
-    if st.session_state.selected_class == 1: c_name = LANG_DICT[lang]["class1_name"]
-    elif st.session_state.selected_class == 2: c_name = LANG_DICT[lang]["class2_name"]
-    elif st.session_state.selected_class == 3: c_name = LANG_DICT[lang]["class3_name"]
-    
-    # 🌟 選択した回答を画面上にデカデカと固定表示（安心感UI）
-    st.success(f"### {LANG_DICT[lang]['status_title']}\n## {c_name}")
-    
-    # クールダウンタイマーの計算
-    elapsed_time = time.time() - st.session_state.last_submit_time
-    remaining_time = 30 - int(elapsed_time)
-    
-    if remaining_time > 0 and st.session_state.cooldown_active:
-        # 🌟 「訂正する！」ボタンを配置（赤色の警告色ボタン）
-        # これが押されると、再度ボタンが押せるようになり、最新の選択がCSVに追記されます
-        if st.button(LANG_DICT[lang]["correction_btn"], type="primary", use_container_width=True):
-            st.session_state.cooldown_active = False
-            st.session_state.selected_class = None
-            st.balloons() # 訂正受付の演出
-            st.rerun()
-            
-        # 🌟 30秒のビジュアルカウントダウンタイマー
-        st.warning(LANG_DICT[lang]["cooldown_msg"])
-        progress_bar = st.progress(max(0, min(100, int((remaining_time / 30) * 100))))
-        st.write(f"⏱️ あと {remaining_time} 秒 (Seconds remaining...)")
-        
-        # 1秒ごとに画面を強制リロードしてタイマーを進める
-        time.sleep(1.0)
-        st.rerun()
+    # 30秒以内に同じデバイスから再度押されたか判定
+    if current_ts - last_ts < 30:
+        # 【30秒以内の連打】
+        st.session_state.submit_status = "spam"
+        # データ集計時に最終行（最新）を有効化するため、CSVには追記を許可する設計
+        save_feedback(pressed_choice, device_id)
     else:
-        # 30秒経過したら、自動的に完全完了モードへ
-        st.session_state.cooldown_active = False
-        st.info(LANG_DICT[lang]["success_msg"])
+        # 【初回、または30秒以上経過した新規回答】
+        st.session_state.submit_status = "success"
+        save_feedback(pressed_choice, device_id)
+
+# ==========================================
+# 8. 結果の動的出力（プログレスバーは完全撤廃、超軽量）
+# ==========================================
+if "submit_status" in st.session_state:
+    st.markdown("---")
+    if st.session_state.submit_status == "success":
+        # 🌟 風船演出をそのまま完全維持！
+        st.balloons()
+        # 🌟 文言を元の「ご回答ありがとうございました！」に復旧
+        st.success(f"### {LANG_DICT[lang]['success_msg']}")
+    elif st.session_state.submit_status == "spam":
+        # 🌟 連打時は風船を出さず、デカデカと警告を表示
+        st.error(f"## ⚠️ {LANG_DICT[lang]['spam_msg']}")
