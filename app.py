@@ -10,7 +10,7 @@ st.set_page_config(page_title="バス混雑度フィードバック", page_icon=
 
 DATA_FILE = "user_feedback.csv"
 
-# セッション状態の初期化（4つのページ遷移・選択状態の完全管理）
+# セッション状態の初期化（ページ遷移・アニメーションフラグの完全管理）
 if "step" not in st.session_state:
     st.session_state.step = 1
 if "selected_choice" not in st.session_state:
@@ -21,9 +21,11 @@ if "birth_year" not in st.session_state:
     st.session_state.birth_year = None
 if "birth_month" not in st.session_state:
     st.session_state.birth_month = None
+if "show_step3_anim" not in st.session_state:
+    st.session_state.show_step3_anim = False
 
 # ==========================================
-# 2. プルダウンメニュー（selectbox）の巨大化＆丸み（角丸）CSS
+# 2. プルダウンメニュー等の巨大化＆丸みCSS
 # ==========================================
 selectbox_css = """
 <style>
@@ -33,18 +35,16 @@ div[data-testid="stSelectbox"] div[data-baseweb="select"] {
 }
 div[data-testid="stSelectbox"] [data-baseweb="select"] > div {
     border-radius: 16px !important;
-    min-height: 58px !important; /* スマホでタップしやすい圧倒的な高さ */
-    font-size: 18px !important;   /* 文字を大きくして視認性向上 */
+    min-height: 58px !important;
+    font-size: 18px !important;
     display: flex;
     align-items: center;
 }
-/* 入力項目のラベルタイトルも太く大きく */
 div[data-testid="stSelectbox"] label p {
     font-size: 16px !important;
     font-weight: bold !important;
     color: #333 !important;
 }
-/* 通常のボタンもすべて丸みを帯びさせる */
 div.stButton > button {
     border-radius: 16px !important;
     font-size: 18px !important;
@@ -55,7 +55,7 @@ div.stButton > button {
 st.markdown(selectbox_css, unsafe_allow_html=True)
 
 # ==========================================
-# 3. 多言語対応辞書（Step 3 & 4 の新規文言を追加）
+# 3. 多言語対応辞書
 # ==========================================
 LANG_DICT = {
     "JA": {
@@ -68,7 +68,7 @@ LANG_DICT = {
         "btn2_text": "少し混雑\n[ 4〜9人 ]\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
         "btn3_text": "大混雑\n[ 10人以上 ]\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
         "step3_title": "🎉 ご回答ありがとうございます！",
-        "step3_sub": "このページを閉じてもらって構いません。",
+        "step3_sub": "ブラウザを閉じてもらって構いません。",
         "step3_label": "🔢 【任意協力】正確な乗車人数を教えてください",
         "step3_default": "選択しない（ここで終了）",
         "step3_btn": "💥 人数を確定して送信する",
@@ -98,21 +98,18 @@ LANG_DICT = {
     }
 }
 
-# 言語切り替え
 selected_lang = st.selectbox("Language / 言語", ["日本語", "English"], label_visibility="collapsed")
 lang = "JA" if selected_lang == "日本語" else "EN"
 
 st.title(LANG_DICT[lang]["title"])
 st.caption(LANG_DICT[lang]["subtitle"])
 
-# URLパラメータ取得
 route_id = st.query_params.get("route_id", "不明(Unknown)")
 busstop_id = st.query_params.get("busstop_id", "不明(Unknown)")
 st.info(f"📍 Route ID: {route_id} / Busstop ID: {busstop_id}")
 
 st.markdown("---")
 
-# CSVデータ保存関数
 def save_feedback(user_choice, approx_count):
     if user_choice is None:
         return
@@ -132,7 +129,7 @@ def save_feedback(user_choice, approx_count):
         st.error(LANG_DICT[lang]["error_msg"])
 
 # ==========================================
-# 4. 【画面遷移】ステップ1：誕生年月入力（丸型巨大プルダウン）
+# 4. 【ステップ1】誕生年月入力
 # ==========================================
 if st.session_state.step == 1:
     current_year = datetime.now().year
@@ -153,17 +150,14 @@ if st.session_state.step == 1:
         st.rerun()
 
 # ==========================================
-# 5. 【画面遷移】ステップ2：アンケート本体（3巨大ボタン＋ノンバーバルハイライト）
+# 5. 【ステップ2】アンケート本体
 # ==========================================
 elif st.session_state.step == 2:
     sel = st.session_state.selected_choice
     highlight_css = ""
-    if sel == 1:
-        highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(1) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
-    elif sel == 2:
-        highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(2) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
-    elif sel == 3:
-        highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(3) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
+    if sel == 1: highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(1) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
+    elif sel == 2: highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(2) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
+    elif sel == 3: highlight_css = "div[data-testid='stHorizontalBlock'] > div:nth-child(3) button { border-width: 6px !important; box-shadow: 0 0 15px rgba(0,0,0,0.4) !important; transform: scale(1.04) !important; }"
 
     base_btn_css = """
     <style>
@@ -181,15 +175,9 @@ elif st.session_state.step == 2:
         transform: scale(0.92) !important;   
         box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
     }
-    div[data-testid="stHorizontalBlock"] > div:nth-child(1) button {
-        border: 3px solid #00c853 !important; background-color: #f1fbf5 !important; color: #333 !important;
-    }
-    div[data-testid="stHorizontalBlock"] > div:nth-child(2) button {
-        border: 3px solid #ffd600 !important; background-color: #fffdef !important; color: #333 !important;
-    }
-    div[data-testid="stHorizontalBlock"] > div:nth-child(3) button {
-        border: 3px solid #d50000 !important; background-color: #fff1f1 !important; color: #333 !important;
-    }
+    div[data-testid="stHorizontalBlock"] > div:nth-child(1) button { border: 3px solid #00c853 !important; background-color: #f1fbf5 !important; color: #333 !important; }
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) button { border: 3px solid #ffd600 !important; background-color: #fffdef !important; color: #333 !important; }
+    div[data-testid="stHorizontalBlock"] > div:nth-child(3) button { border: 3px solid #d50000 !important; background-color: #fff1f1 !important; color: #333 !important; }
     </style>
     """
     st.markdown(base_btn_css, unsafe_allow_html=True)
@@ -208,17 +196,21 @@ elif st.session_state.step == 2:
 
     if pressed_choice is not None:
         st.session_state.selected_choice = pressed_choice
-        # まずは基本の混雑度だけで即時CSV保存（離脱対策）
         save_feedback(pressed_choice, LANG_DICT[lang]["step3_default"])
-        # ボタンを押したら即座に「ステップ3」へ進む
         st.session_state.step = 3
+        # 🌟 ここで「ステップ3に遷移した時に風船を飛ばすフラグ」をオンにする
+        st.session_state.show_step3_anim = True
         st.rerun()
 
 # ==========================================
-# 6. 【画面遷移】ステップ3：中央配置の受付完了 ＆ 1〜40人詳細入力ページ
+# 6. 【ステップ3】受付完了 ＆ 詳細入力
 # ==========================================
 elif st.session_state.step == 3:
-    # 🌟 "ご回答ありがとうございます!" を中央に綺麗に配置
+    # 🌟 ステップ3に入ってきた直後のみ風船を飛ばす
+    if st.session_state.show_step3_anim:
+        st.balloons()
+        st.session_state.show_step3_anim = False # 一度飛ばしたらオフにする
+
     st.markdown(f"""
     <div style="text-align: center; margin-top: 10px; margin-bottom: 25px;">
         <h2 style="color: #333; font-weight: bold;">{LANG_DICT[lang]["step3_title"]}</h2>
@@ -226,7 +218,6 @@ elif st.session_state.step == 3:
     </div>
     """, unsafe_allow_html=True)
     
-    # 🌟 1〜"40人以上" のプルダウンメニューを動的生成
     suffix = "人" if lang == "JA" else " ppl"
     max_suffix = "40人以上" if lang == "JA" else "40+ ppl"
     
@@ -244,27 +235,23 @@ elif st.session_state.step == 3:
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 🌟 人数確定ボタン
     if st.button(LANG_DICT[lang]["step3_btn"], use_container_width=True, type="primary"):
         st.session_state.approx_val = selected_approx
-        # 詳細人数を伴ってCSVに最新データを追記保存
         save_feedback(st.session_state.selected_choice, selected_approx)
-        # 最終ページ（ステップ4）へ
         st.session_state.step = 4
         st.rerun()
         
-    # 🌟 回答修正リンク（目立たないように下部に配置し、前画面に戻れるコメダ親切設計）
     st.markdown("<br><br><br><hr style='border-top: 1px dashed #ccc;'><br>", unsafe_allow_html=True)
     if st.button(LANG_DICT[lang]["step3_fix_btn"], use_container_width=True):
         st.session_state.step = 2
         st.rerun()
 
 # ==========================================
-# 7. 【画面遷移】ステップ4：最終お礼ページ（ここでドカンと風船演出🎈）
+# 7. 【ステップ4】最終お礼ページ（紙吹雪 / Snow演出）
 # ==========================================
 elif st.session_state.step == 4:
-    # 盛大に風船を飛ばして協力を称える
-    st.balloons()
+    # 🌟 任意回答まで協力してくれた人には、特別な紙吹雪（雪）のアニメーションを！
+    st.snow()
     
     st.markdown(f"""
     <div style="text-align: center; margin-top: 60px;">
