@@ -11,55 +11,29 @@ st.set_page_config(page_title="バス混雑度フィードバック", page_icon=
 DATA_FILE = "user_feedback.csv"
 
 # ==========================================
-# 2. 【神業】LocalStorageを使った永続デバイスIDの自動付与（リログ・QR再読込対策）
-# ==========================================
-device_id = st.query_params.get("device_id")
-
-if not device_id:
-    # URLにdevice_idがない場合、ブラウザのストレージからIDを読み込む（無ければ新規発行）
-    # Cross-Originを回避して画面全体をリダイレクトさせるJavaScript
-    js_redirect = """
-    <script>
-    const topUrl = new URL(window.top.location.href);
-    if (!topUrl.searchParams.has('device_id')) {
-        let devId = localStorage.getItem('bus_device_id');
-        if (!devId) {
-            devId = 'dev_' + Math.random().toString(36).substring(2, 11);
-            localStorage.setItem('bus_device_id', devId);
-        }
-        topUrl.searchParams.set('device_id', devId);
-        window.top.location.href = topUrl.toString();
-    }
-    </script>
-    """
-    st.components.v1.html(js_redirect, height=0, width=0)
-    st.info("読み込み中... (Loading...)")
-    st.stop()
-
-# ==========================================
-# 3. 視覚的アニメーション＆スタイル（カスタムCSS）
+# 2. 視覚的アニメーション＆スタイル（カスタムCSS）
 # ==========================================
 st.markdown("""
 <style>
 /* 3つのボタン共通の巨大化・カード化設定 */
 div[data-testid="stHorizontalBlock"] button {
-    height: 200px !important;    
+    height: 220px !important;    
     width: 100% !important;
     white-space: pre-wrap !important; 
-    font-size: 16px !important;
+    font-size: 15px !important;
     font-weight: bold !important;
     border-radius: 20px !important;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
     transition: all 0.2s ease !important;
 }
 
-/* スマホでタップした瞬間にボタンがグッと沈み込む効果（連打しても楽しい押し心地） */
+/* スマホでタップした瞬間にボタンがグッと沈み込む効果（最高の押し心地） */
 div[data-testid="stHorizontalBlock"] button:active {
     transform: scale(0.92) !important;   
     box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
 }
 
-/* 通常時のボタン色（緑、黄、赤）※連打できるように常に活性化 */
+/* 通常時のボタン色（緑、黄、赤） */
 div[data-testid="stHorizontalBlock"] > div:nth-child(1) button {
     border: 3px solid #00c853 !important; background-color: #f1fbf5 !important; color: #333 !important;
 }
@@ -73,26 +47,35 @@ div[data-testid="stHorizontalBlock"] > div:nth-child(3) button {
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 4. 多言語対応辞書
+# 3. 多言語対応辞書（主観補正用の人数帯を追加）
 # ==========================================
 LANG_DICT = {
     "JA": {
         "title": "🚌 混雑度アンケート",
         "subtitle": "今の車内の様子をタップして教えてください！",
-        "btn1_text": "ガラガラ\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
-        "btn2_text": "少し混雑\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
-        "btn3_text": "大混雑\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
-        "success_msg": "ご回答ありがとうございました！🙌",
-        "spam_msg": "すでに回答を受け付けています。"
+        "birth_year_label": "誕生年 (Birth Year)",
+        "birth_month_label": "誕生月 (Birth Month)",
+        "optional_section": "📊 【任意協力】もう少し詳しく教えてください",
+        "approx_label": "車内の「だいたいの合計人数」は？",
+        "approx_default": "選択しない（スキップ）",
+        # 🌟 主観補正用の人数帯を明記！
+        "btn1_text": "ガラガラ\n[ 0 〜 3人 ]\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
+        "btn2_text": "少し混雑\n[ 4 〜 9人 ]\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
+        "btn3_text": "大混雑\n[ 10人以上 ]\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
+        "success_msg": "ご回答ありがとうございました！🙌"
     },
     "EN": {
         "title": "🚌 Congestion Survey",
         "subtitle": "Tap the card that matches the current bus!",
-        "btn1_text": "Empty\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
-        "btn2_text": "Standing\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
-        "btn3_text": "Crowded\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
-        "success_msg": "Thank you for your cooperation! 🙌",
-        "spam_msg": "We have already received your answer."
+        "birth_year_label": "Birth Year",
+        "birth_month_label": "Birth Month",
+        "optional_section": "📊 [Optional] Tell us more details",
+        "approx_label": "About how many passengers in total?",
+        "approx_default": "Select here (Skip)",
+        "btn1_text": "Empty\n[ 0 - 3 ppl ]\n\n🟢\n💺 💺 💺\n💺 💺 🧍\n\n🚌",
+        "btn2_text": "Standing\n[ 4 - 9 ppl ]\n\n🟡\n🧍 🧍 🧍\n💺 💺 🧍\n\n🚌",
+        "btn3_text": "Crowded\n[ 10+ ppl ]\n\n🔴\n🧍🧍🧍\n🧍🧍🧍\n🧍🧍🧍\n\n🚌",
+        "success_msg": "Thank you for your cooperation! 🙌"
     }
 }
 
@@ -103,51 +86,40 @@ lang = "JA" if selected_lang == "日本語" else "EN"
 st.title(LANG_DICT[lang]["title"])
 st.caption(LANG_DICT[lang]["subtitle"])
 
-# パラメータ取得（裏側で紐づいた永続デバイスIDを表示）
+# ==========================================
+# 4. コメダ/タリーズ方式：属性入力（横並びでスマートに選択）
+# ==========================================
+current_year = datetime.now().year
+year_options = [str(y) for y in range(current_year - 15, current_year - 90, -1)]
+month_options = [str(m) for m in range(1, 13)]
+
+col_y, col_m = st.columns(2)
+with col_y:
+    birth_year = st.selectbox(LANG_DICT[lang]["birth_year_label"], year_options, index=10) # デフォルトで20代半ば付近
+with col_m:
+    birth_month = st.selectbox(LANG_DICT[lang]["birth_month_label"], month_options, index=0)
+
+# パラメータ取得
 route_id = st.query_params.get("route_id", "不明(Unknown)")
 busstop_id = st.query_params.get("busstop_id", "不明(Unknown)")
-st.info(f"📍 Route: {route_id} / Busstop: {busstop_id} / 📱 Device: {device_id}")
+st.info(f"📍 Route: {route_id} / Busstop: {busstop_id}")
 
 st.markdown("---")
 
 # ==========================================
-# 5. 裏側での30秒判定ロジック（CSVから最新時間をスキャン）
+# 5. 【新機能】下部のおおよその人数入力（AI用の宝の山データ）
 # ==========================================
-def get_last_submit_time(dev_id):
-    if not os.path.isfile(DATA_FILE):
-        return 0
-    try:
-        with open(DATA_FILE, mode='r', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            header = next(reader, None)
-            if not header or "device_id" not in header:
-                return 0
-            dev_idx = header.index("device_id")
-            ts_idx = header.index("timestamp")
-            
-            last_ts = 0
-            for row in reader:
-                if len(row) > max(dev_idx, ts_idx) and row[dev_idx] == dev_id:
-                    last_ts = max(last_ts, int(row[ts_idx]))
-            return last_ts
-    except:
-        return 0
+st.write(f"### {LANG_DICT[lang]['optional_section']}")
+approx_options = [
+    LANG_DICT[lang]["approx_default"], 
+    "0〜2人", "3〜5人", "6〜10人", "11replace〜15人", "16〜20人", "21〜25人", "26人以上"
+]
+selected_approx = st.selectbox(LANG_DICT[lang]["approx_label"], approx_options, label_visibility="visible")
 
-def save_feedback(user_choice, dev_id):
-    now_ts = int(datetime.now().timestamp())
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    file_exists = os.path.isfile(DATA_FILE)
-    try:
-        with open(DATA_FILE, mode='a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["timestamp", "datetime", "route_id", "busstop_id", "user_class", "device_id"])
-            writer.writerow([now_ts, now_str, route_id, busstop_id, user_choice, dev_id])
-    except Exception as e:
-        st.error("Save Error")
+st.markdown("---")
 
 # ==========================================
-# 6. メインUI：巨大ボタンエリア（連打可能）
+# 6. メインUI：巨大3色ボタンエリア
 # ==========================================
 col1, col2, col3 = st.columns(3)
 pressed_choice = None
@@ -160,33 +132,30 @@ with col3:
     if st.button(LANG_DICT[lang]["btn3_text"], key="b3", use_container_width=True): pressed_choice = 3
 
 # ==========================================
-# 7. ボタンが押されたときのアクション判定
+# 7. 保存処理（誕生年月＋詳細人数をCSVに記録）
 # ==========================================
 if pressed_choice is not None:
-    current_ts = int(datetime.now().timestamp())
-    last_ts = get_last_submit_time(device_id)
+    now_ts = int(datetime.now().timestamp())
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    file_exists = os.path.isfile(DATA_FILE)
     
-    # 30秒以内に同じデバイスから再度押されたか判定
-    if current_ts - last_ts < 30:
-        # 【30秒以内の連打】
-        st.session_state.submit_status = "spam"
-        # データ集計時に最終行（最新）を有効化するため、CSVには追記を許可する設計
-        save_feedback(pressed_choice, device_id)
-    else:
-        # 【初回、または30秒以上経過した新規回答】
-        st.session_state.submit_status = "success"
-        save_feedback(pressed_choice, device_id)
-
-# ==========================================
-# 8. 結果の動的出力（プログレスバーは完全撤廃、超軽量）
-# ==========================================
-if "submit_status" in st.session_state:
-    st.markdown("---")
-    if st.session_state.submit_status == "success":
-        # 🌟 風船演出をそのまま完全維持！
+    try:
+        with open(DATA_FILE, mode='a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                # CSVのヘッダーを一新。永続IDを廃止し、birth_year, birth_month, approx_countを記録
+                writer.writerow([
+                    "timestamp", "datetime", "route_id", "busstop_id", 
+                    "user_class", "birth_year", "birth_month", "approx_count"
+                ])
+            writer.writerow([
+                now_ts, now_str, route_id, busstop_id, 
+                pressed_choice, birth_year, birth_month, selected_approx
+            ])
+            
+        # 🌟 何度リログされても、連打されても、毎回盛大に風船を飛ばしてUXを最高にする！
         st.balloons()
-        # 🌟 文言を元の「ご回答ありがとうございました！」に復旧
         st.success(f"### {LANG_DICT[lang]['success_msg']}")
-    elif st.session_state.submit_status == "spam":
-        # 🌟 連打時は風船を出さず、デカデカと警告を表示
-        st.error(f"## ⚠️ {LANG_DICT[lang]['spam_msg']}")
+        
+    except Exception as e:
+        st.error("Save Error")
